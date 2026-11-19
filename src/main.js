@@ -30,9 +30,24 @@ function toast(msg, err = false) {
 }
 async function busy(btn, fn) {
   if (btn) btn.disabled = true;
-  try { return await fn(); } catch (e) { toast(explainError(e), true); console.error(e); } finally { if (btn) btn.disabled = false; }
+  try { return await fn(); } catch (e) { toast(explainError(e), true); console.error(e); report(btn?.dataset?.action || 'action', e); } finally { if (btn) btn.disabled = false; }
 }
 const STATUS = ['Pending', 'Paid', 'Rejected', 'Expired'];
+function report(where, e) {
+  try {
+    const walk = []; let x = e; for (let i = 0; x && i < 6; i++) { walk.push([x.name, x.code, x.shortMessage || x.message, x.details, typeof x.data === 'string' ? x.data : JSON.stringify(x.data)].filter(Boolean).join(' | ')); x = x.cause; }
+    fetch('/api/log', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ where, msg: walk.join(' <- '), code: e?.code ?? e?.cause?.code ?? null }) });
+  } catch {}
+}
+// Send through the wallet with legacy fees first; if the wallet rejects that, retry letting the wallet pick fees.
+async function viaWallet(send) {
+  try { return await send(await legacyFees()); }
+  catch (e) {
+    if (/reject|denied|cancel/i.test(e?.message || '')) throw e;
+    report('wallet-legacy', e);
+    return await send({});
+  }
+}
 
 // ---------------------------------------------------------------- state
 const S = {
@@ -200,7 +215,7 @@ async function ownerWrite(functionName, args) {
   const w = owner();
   const { request } = await pub.simulateContract({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
   const gas = await pub.estimateContractGas({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
-  const hash = await w.writeContract({ ...request, gas: (gas * 13n) / 10n, ...(await legacyFees()) });
+  const hash = await viaWallet((fees) => w.writeContract({ ...request, gas: (gas * 13n) / 10n, ...fees }));
   toast('Submitted… waiting for Aevum');
   await waitTx(hash);
   return hash;
@@ -212,24 +227,31 @@ async function createVault(btn) {
     if (!(daily > 0) || !(thr >= 0) || thr > daily) throw new Error('Threshold must be between 0 and the daily limit.');
     await ensureAevum();
     const gasBal = await pub.getBalance({ address: S.owner });
-    if (gasBal < parseEther('0.6')) {
-      throw new Error(`Your wallet has ${Number(formatEther(gasBal)).toFixed(3)} tQDAY on Aevum. You need about 1 tQDAY to deploy the vault and give the assistant gas. Claim some from the QDay faucet, then try again.`);
+    if (gasBal < parseEther('1.05')) {
+      throw new Error(`Your wallet has ${Number(formatEther(gasBal)).toFixed(3)} tQDAY on Aevum. You need about 1.1 tQDAY. Claim some from the QDay faucet, then try again.`);
     }
-    const key = generatePrivateKey();
+    // 1) Create the assistant key and keep it until the vault exists.
+    let key = store.get('leash:pendingAgent');
+    if (!key) { key = generatePrivateKey(); store.set('leash:pendingAgent', key); }
     const agent = privateKeyToAccount(key).address;
-    const w = owner();
-    const args = [TUSD8, agent, toUnits(daily), toUnits(thr)];
-    const gas = await pub.estimateGas({ account: S.owner, data: encodeDeployData({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args }) });
-    toast('Confirm the deployment in your wallet');
-    const hash = await w.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args, gas: (gas * 13n) / 10n, ...(await legacyFees()) });
+    // 2) Your wallet sends the assistant 1 tQDAY (a plain transfer). Skipped if it already has gas.
+    if ((await pub.getBalance({ address: agent })) < parseEther('0.05')) {
+      toast('Confirm sending 1 tQDAY to your assistant');
+      const w = owner();
+      const g = await viaWallet((fees) => w.sendTransaction({ to: agent, value: parseEther('1'), gas: 21000n, ...fees }));
+      await waitTx(g);
+    }
+    // 3) The assistant key deploys your vault, with YOU set as owner.
+    toast('Deploying your vault on Aevum…');
+    const ac = agentClient(key);
+    const args = [TUSD8, getAddress(S.owner), agent, toUnits(daily), toUnits(thr)];
+    const gas = await pub.estimateGas({ account: ac.account, data: encodeDeployData({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args }) });
+    const hash = await ac.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args, gas: (gas * 13n) / 10n, ...(await legacyFees()) });
     const r = await waitTx(hash);
     saveVault(r.contractAddress, r.blockNumber);
     saveAgentKey(key);
-    toast('Vault deployed. Confirm the 0.5 tQDAY gas for the assistant.');
-    try {
-      const g = await w.sendTransaction({ to: agent, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) });
-      await waitTx(g);
-    } catch (e) { toast('Skipped gas top-up: ' + explainError(e), true); }
+    store.del('leash:pendingAgent');
+    toast('Vault deployed. You are the owner.');
     showDash();
   });
 }
@@ -279,7 +301,7 @@ async function rotate(btn) {
     const addr = privateKeyToAccount(key).address;
     await ownerWrite('setAgent', [addr]);
     saveAgentKey(key);
-    try { await waitTx(await owner().sendTransaction({ to: addr, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) })); } catch (e) { toast('Gas top-up skipped', true); }
+    try { await waitTx(await viaWallet((fees) => owner().sendTransaction({ to: addr, value: parseEther('0.5'), gas: 21000n, ...fees }))); } catch (e) { toast('Gas top-up skipped', true); }
     toast('Assistant key replaced. The old key no longer works.'); await refresh();
   });
 }
@@ -295,7 +317,7 @@ async function deposit(btn) {
     await ensureAevum();
     const { request } = await pub.simulateContract({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
     const gas = await pub.estimateContractGas({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
-    await waitTx(await owner().writeContract({ ...request, gas: (gas * 13n) / 10n, ...(await legacyFees()) }));
+    await waitTx(await viaWallet((fees) => owner().writeContract({ ...request, gas: (gas * 13n) / 10n, ...fees })));
     $('depAmt').value = ''; toast(`Deposited ${amt} tUSD8`); await refresh(); renderWallet();
   });
 }
@@ -310,7 +332,7 @@ async function topupGas(btn) {
   await busy(btn, async () => {
     if (!S.agentKey) throw new Error('This browser doesn’t have the assistant’s key. Replace the key first.');
     await ensureAevum();
-    await waitTx(await owner().sendTransaction({ to: privateKeyToAccount(S.agentKey).address, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) }));
+    await waitTx(await viaWallet((fees) => owner().sendTransaction({ to: privateKeyToAccount(S.agentKey).address, value: parseEther('0.5'), gas: 21000n, ...fees })));
     toast('Assistant gas topped up'); await refresh();
   });
 }

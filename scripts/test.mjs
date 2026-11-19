@@ -53,14 +53,18 @@ async function reverts(from, address, abi, functionName, args, errName) {
 const read = (address, abi, functionName, args = []) => pub.readContract({ address, abi, functionName, args });
 
 const token = await deploy(T.abi, T.bytecode);
-const vault = await deploy(V.abi, V.bytecode, [token, agent, u(50), u(20)]);
+const vault = await deploy(V.abi, V.bytecode, [token, owner, agent, u(50), u(20)], agent); // deployed by the agent key, owned by owner
 await send(owner, token, T.abi, 'mint', [vault, u(200)]);
 const bal = (a) => read(token, T.abi, 'balanceOf', [a]);
 
 console.log('LeashVault');
 
+await it('owner is the passed owner, not the deployer', async () => {
+  assert.equal((await read(vault, V.abi, 'owner')).toLowerCase(), owner.toLowerCase());
+});
+
 await it('rejects bad limits at deploy (threshold > daily)', async () => {
-  await assert.rejects(deploy(V.abi, V.bytecode, [token, agent, u(10), u(20)]));
+  await assert.rejects(deploy(V.abi, V.bytecode, [token, owner, agent, u(10), u(20)]));
 });
 
 await it('agent cannot pay someone who is not an approved payee', async () => {

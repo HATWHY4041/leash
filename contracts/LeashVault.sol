@@ -88,10 +88,13 @@ contract LeashVault {
         locked = false;
     }
 
-    constructor(address token_, address agent_, uint256 dailyLimit_, uint256 approvalThreshold_) {
+    /// @param owner_ the human in control. Passed explicitly so the vault can be deployed by any account
+    ///        (e.g. the assistant key paying the gas) while control stays with the owner's wallet.
+    constructor(address token_, address owner_, address agent_, uint256 dailyLimit_, uint256 approvalThreshold_) {
         if (approvalThreshold_ > dailyLimit_) revert BadLimits();
+        if (owner_ == address(0)) revert BadRequest();
         token = IERC20(token_);
-        owner = msg.sender;
+        owner = owner_;
         agent = agent_;
         dailyLimit = dailyLimit_;
         approvalThreshold = approvalThreshold_;

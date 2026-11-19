@@ -70,7 +70,7 @@ Leash splits the assistant's power in two:
 
 ### Core workflows
 
-1. **Create a vault.** Connect your wallet → Leash adds the Aevum network (chain ID 44005) → you pick a daily limit and an "ask me above" amount → the app generates a fresh assistant key in your browser, deploys `LeashVault` from your wallet, and sends the assistant 0.5 tQDAY for gas.
+1. **Create a vault.** Connect your wallet → Leash adds the Aevum network (chain ID 44005) → you pick a daily limit and an "ask me above" amount → the app generates a fresh assistant key in your browser, your wallet sends it 1 tQDAY for gas, and the assistant key deploys `LeashVault` with **your wallet set as owner** (the constructor takes `owner_` explicitly, so the deployer gets no special rights).
 2. **Fund it.** Deposit tUSD8 from your wallet (get some from the [QDay faucet](https://faucet.qday.info/en)).
 3. **Approve payees.** Add names + addresses. They are stored in the contract.
 4. **Chat.** "pay Tunde 2 for the logo" → instant payment if all rules pass. "send 5 to Tunde for the website" → above threshold → filed as request #N.
