@@ -26,7 +26,7 @@ async function pickModel(base, key) {
   return (cachedModel = ids[0]);
 }
 
-export async function complete({ system, prompt, maxTokens = 300, timeoutMs = 9000 }) {
+export async function complete({ system, prompt, maxTokens = 700, timeoutMs = 9000 }) {
   if (process.env.LLM_API_KEY) {
     const key = process.env.LLM_API_KEY;
     const base = (process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/$/, '');
@@ -36,6 +36,7 @@ export async function complete({ system, prompt, maxTokens = 300, timeoutMs = 90
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model, temperature: 0, max_tokens: maxTokens,
+        ...(/gpt-oss|qwen3|deepseek-r1/i.test(model) ? { reasoning_effort: /gpt-oss/i.test(model) ? 'low' : 'none' } : {}),
         messages: [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(timeoutMs),

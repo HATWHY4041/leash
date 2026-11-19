@@ -22,8 +22,12 @@ export default async function handler(req, res) {
   }
   if (req.query?.ai === '1') {
     try {
-      const { text, model } = await complete({ prompt: 'Reply with the single word: ok', maxTokens: 5 });
-      out.ai = { ok: true, model, reply: text.trim() };
+      const t0 = Date.now();
+      const { text, model } = await complete({
+        system: 'Return only JSON: {"intent":"pay","payee":string,"amount":number,"memo":string}.',
+        prompt: 'Approved payees: ["Tunde","Kemi"]\nUser message: "abeg send tunde 4 bucks for the flyer"',
+      });
+      out.ai = { ok: !!text.trim(), model, ms: Date.now() - t0, sample: text.trim().slice(0, 200) };
     } catch (e) {
       out.ai = { ok: false, error: String(e.message || e).slice(0, 200) };
     }
