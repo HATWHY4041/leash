@@ -1,0 +1,24 @@
+{
+  "name": "leash",
+  "version": "1.0.0",
+  "description": "Leash — an AI payment assistant on a leash. Spending limits enforced by a smart contract on QDay Aevum Testnet.",
+  "scripts": {
+    "compile": "node scripts/compile.mjs",
+    "test": "node scripts/compile.mjs && node scripts/test.mjs",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "ganache": "^7.9.2",
+    "solc": "^0.8.26",
+    "viem": "^2.58.1",
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "ai": "^5.0.291"
+  },
+  "type": "module",
+  "private": true
+}
