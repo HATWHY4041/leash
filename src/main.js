@@ -315,6 +315,8 @@ async function deposit(btn) {
   await busy(btn, async () => {
     const amt = Number($('depAmt').value); if (!(amt > 0)) throw new Error('Enter an amount.');
     await ensureAevum();
+    const have = await pub.readContract({ address: TUSD8, abi: ERC20_ABI, functionName: 'balanceOf', args: [S.owner] });
+    if (have < toUnits(amt)) throw new Error(`Your wallet has ${fmt(have)} tUSD8. Claim tUSD8 from the faucet’s tUSD8 tab or the QDay Discord, then deposit.`);
     const { request } = await pub.simulateContract({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
     const gas = await pub.estimateContractGas({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
     await waitTx(await viaWallet((fees) => owner().writeContract({ ...request, gas: (gas * 13n) / 10n, ...fees })));
@@ -324,6 +326,7 @@ async function deposit(btn) {
 async function withdraw(btn) {
   await busy(btn, async () => {
     const amt = Number($('wdAmt').value); if (!(amt > 0)) throw new Error('Enter an amount.');
+    if (S.d.balance < toUnits(amt)) throw new Error(`The vault only holds ${fmt(S.d.balance)} tUSD8.`);
     await ownerWrite('withdraw', [S.owner, toUnits(amt)]);
     $('wdAmt').value = ''; toast(`Withdrew ${amt} tUSD8`); await refresh(); renderWallet();
   });
@@ -396,6 +399,7 @@ async function planPayment(it, src) {
   ];
   const head = `Pay ${it.amount} tUSD8 to ${it.payee}${it.memo ? ` for “${it.memo}”` : ''}.`;
   if (d.paused) return say('bot', head, checkBox(rows), 'I’m paused, so I won’t send anything.', src);
+  if (amt > d.balance) return say('bot', head, checkBox(rows), `The vault doesn’t have enough tUSD8, so I won’t try. Deposit some under Rules first.`, src);
   if (!keyOk) return say('bot', head, checkBox(rows), 'This browser doesn’t have the assistant’s key. Replace the key under Rules to use me here.', src);
   if (d.agentGas < parseEther('0.002')) return say('bot', head, checkBox(rows), 'I’m out of gas. Add gas under Rules.', src);
 
