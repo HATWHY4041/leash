@@ -17,7 +17,9 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
-    "ai": "^5.0.291"
+    "@walletconnect/ethereum-provider": "^2.26.0",
+    "ai": "^5.0.291",
+    "qrcode": "^1.5.4"
   },
   "type": "module",
   "private": true

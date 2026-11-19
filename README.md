@@ -70,13 +70,22 @@ Leash splits the assistant's power in two:
 
 ### Core workflows
 
-1. **Create a vault.** Connect your wallet → Leash adds the Aevum network (chain ID 44005) → you pick a daily limit and an "ask me above" amount → the app generates a fresh assistant key in your browser, your wallet sends it 1 tQDAY for gas, and the assistant key deploys `LeashVault` with **your wallet set as owner** (the constructor takes `owner_` explicitly, so the deployer gets no special rights).
+1. **Create a vault.** Connect any EVM wallet → Leash adds the Aevum network (chain ID 44005) → you pick a daily limit and an "ask me above" amount → the app generates a fresh assistant key in your browser, your wallet sends it 1 tQDAY for gas, and the assistant key deploys `LeashVault` with **your wallet set as owner** (the constructor takes `owner_` explicitly, so the deployer gets no special rights).
 2. **Fund it.** Deposit tUSD8 from your wallet (get some from the [QDay faucet](https://faucet.qday.info/en)).
 3. **Approve payees.** Add names + addresses. They are stored in the contract.
 4. **Chat.** "pay Tunde 2 for the logo" → instant payment if all rules pass. "send 5 to Tunde for the website" → above threshold → filed as request #N.
 5. **Approve.** In *Approvals*, approve (pays) or reject. Requests expire after 24h.
 6. **Pull the leash.** *Rules* → Pause, rotate the key, revoke the assistant, change limits, withdraw.
 7. **Audit.** *Activity* reads every vault event straight from Aevum, with explorer links.
+
+## Works with any wallet
+
+Leash isn't tied to one wallet:
+
+- **Browser wallets:** finds every installed EVM wallet through EIP-6963 (MetaMask, Rabby, Coinbase Wallet, OKX, Trust, Phantom, Brave, Rainbow, Zerion and others) and lets you pick one.
+- **Wallet in-app browsers on mobile:** works with the injected provider directly. If a phone has no wallet in the current browser, Leash shows "open in your wallet app" links (MetaMask, Trust, Coinbase Wallet, OKX, Phantom).
+- **WalletConnect:** set `VITE_WC_PROJECT_ID` (free at dashboard.reown.com) to let any WalletConnect wallet pair by QR code.
+- Adds and switches to the QDay Aevum Testnet automatically. Wallet sends try legacy (type-0) fees first and fall back to the wallet's own fee choice if a wallet rejects them.
 
 ## Safety, trust and controls
 

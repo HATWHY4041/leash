@@ -37,12 +37,15 @@ export const toUnits = (n) => parseUnits(String(n), DECIMALS);
 export const fromUnits = (v) => Number(formatUnits(v ?? 0n, DECIMALS));
 export const fmt = (v) => fromUnits(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
-// ------------------------------------------------------------- owner (MetaMask)
-export function hasWallet() { return typeof window !== 'undefined' && !!window.ethereum; }
+// ------------------------------------------------------------- owner (any EVM wallet)
+let eth = null; // the EIP-1193 provider the user picked
+export function setProvider(p) { eth = p; }
+export function getProvider() { return eth; }
+export function hasWallet() { return !!eth; }
 
 export async function connectOwner() {
-  if (!hasWallet()) throw new Error('No wallet found. Open this page in MetaMask (or any EVM wallet browser).');
-  const [address] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  if (!eth) throw new Error('Connect a wallet first.');
+  const [address] = await eth.request({ method: 'eth_requestAccounts' });
   await ensureAevum();
   return address;
 }
@@ -50,22 +53,29 @@ export async function connectOwner() {
 export async function ensureAevum() {
   const hex = '0x' + aevum.id.toString(16);
   try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+    await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
   } catch (e) {
-    if (e.code === 4902 || /unrecognized|not added|unknown chain/i.test(e.message || '')) {
-      await window.ethereum.request({
+    if (e.code === 4902 || e?.data?.originalError?.code === 4902 || /unrecognized|not added|unknown chain|not supported|no chain|4902/i.test(e.message || '')) {
+      await eth.request({
         method: 'wallet_addEthereumChain',
         params: [{
           chainId: hex, chainName: aevum.name, nativeCurrency: aevum.nativeCurrency,
           rpcUrls: [RPC_URL], blockExplorerUrls: [EXPLORER],
         }],
       });
-    } else throw e;
+      // Some wallets add the chain without switching to it.
+      try { await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] }); } catch {}
+    } else if (e.code === 4001) throw e;
+    // Other wallets don't support switching at all; carry on and let the chain check below decide.
+  }
+  const cid = await eth.request({ method: 'eth_chainId' }).catch(() => null);
+  if (cid && parseInt(cid, 16) !== aevum.id) {
+    throw new Error('Please switch your wallet to the QDay Aevum Testnet network (chain ID 44005, RPC https://rpc-test.qday.info) and try again.');
   }
 }
 
 export function ownerClient(address) {
-  return createWalletClient({ account: address, chain: aevum, transport: custom(window.ethereum) });
+  return createWalletClient({ account: address, chain: aevum, transport: custom(eth) });
 }
 
 // ------------------------------------------------------------- agent (local session key)

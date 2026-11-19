@@ -1,10 +1,11 @@
 import { isAddress, getAddress, parseEther, formatEther, encodeDeployData } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
-  pub, connectOwner, ownerClient, agentClient, waitTx, explainError, hasWallet, ensureAevum,
+  pub, connectOwner, ownerClient, agentClient, waitTx, explainError, hasWallet, ensureAevum, setProvider,
   VAULT_ABI, VAULT_BYTECODE, ERC20_ABI, TUSD8, legacyFees, toUnits, fromUnits, fmt, short, txLink, addrLink, FAUCET,
 } from './chain.js';
 import { parseIntent } from './parser.js';
+import { chooseWallet, restore, forgetWallet } from './wallet.js';
 
 // ---------------------------------------------------------------- tiny helpers
 const $ = (id) => document.getElementById(id);
@@ -216,6 +217,7 @@ function owner() {
   return ownerClient(S.owner);
 }
 async function ownerWrite(functionName, args) {
+  if (!hasWallet()) throw new Error('Connect your wallet first.');
   await ensureAevum();
   const w = owner();
   const { request } = await pub.simulateContract({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
@@ -456,10 +458,21 @@ async function showDash() {
   renderWallet().catch(() => {});
 }
 
+function useProvider(p) {
+  setProvider(p);
+  p.on?.('accountsChanged', (a) => { S.owner = a[0] || null; $('connectBtn').textContent = S.owner ? short(S.owner) : 'Connect wallet'; if (S.vault) refresh(); else showSetup(); });
+  p.on?.('disconnect', () => { S.owner = null; $('connectBtn').textContent = 'Connect wallet'; });
+}
 async function onConnect(btn) {
   await busy(btn, async () => {
+    if (S.owner && btn?.id === 'connectBtn') { // tap again to switch wallet
+      forgetWallet(); S.owner = null; $('connectBtn').textContent = 'Connect wallet';
+    }
+    const w = await chooseWallet();
+    useProvider(w.provider);
     S.owner = await connectOwner();
     $('connectBtn').textContent = short(S.owner);
+    toast(`Connected with ${w.name}`);
     if (S.vault) showDash(); else showSetup();
   });
 }
@@ -487,10 +500,13 @@ $('chatForm').addEventListener('submit', (e) => {
   e.preventDefault(); const v = $('chatInput').value.trim(); if (!v) return; $('chatInput').value = ''; handleChat(v);
 });
 
-if (hasWallet()) {
-  window.ethereum.on?.('accountsChanged', (a) => { S.owner = a[0] || null; $('connectBtn').textContent = S.owner ? short(S.owner) : 'Connect wallet'; if (S.vault) refresh(); });
-  window.ethereum.request({ method: 'eth_accounts' }).then((a) => { if (a[0]) { S.owner = a[0]; $('connectBtn').textContent = short(a[0]); if (!S.vault) showSetup(); renderWallet().catch(() => {}); } }).catch(() => {});
-}
+restore().then((w) => {
+  if (!w) return;
+  useProvider(w.provider);
+  return w.provider.request({ method: 'eth_accounts' }).then((a) => {
+    if (a[0]) { S.owner = a[0]; $('connectBtn').textContent = short(a[0]); if (!S.vault) showSetup(); renderWallet().catch(() => {}); }
+  });
+}).catch(() => {});
 loadVault();
 if (S.vault) showDash(); else showSetup();
 setInterval(() => { if (S.vault && !document.hidden) refresh().catch(() => {}); }, 20000);
