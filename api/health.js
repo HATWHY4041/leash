@@ -44,6 +44,18 @@ export default async function handler(req, res) {
       eip1559: await send(await acct.signTransaction({ ...base, type: 'eip1559', maxFeePerGas: 1100000000n, maxPriorityFeePerGas: 1000000000n })),
     };
   }
+  if (/^0x[0-9a-fA-F]{40}$/.test(req.query?.logs || '')) {
+    const call = async (method, params) => { const j = await (await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json(); return j.error ? { error: j.error } : { n: j.result.length }; };
+    const latest = parseInt((await (await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_blockNumber', params: [] }) })).json()).result, 16);
+    const hex = (n) => '0x' + n.toString(16);
+    out.logs = {
+      latest,
+      addrOnly10k: await call('eth_getLogs', [{ address: req.query.logs, fromBlock: hex(latest - 9999), toBlock: hex(latest) }]),
+      addrOnly1k: await call('eth_getLogs', [{ address: req.query.logs, fromBlock: hex(latest - 999), toBlock: hex(latest) }]),
+      orTopics: await call('eth_getLogs', [{ address: req.query.logs, fromBlock: hex(latest - 999), toBlock: hex(latest), topics: [['0x' + '11'.repeat(32), '0x' + '22'.repeat(32)]] }]),
+      fromZero: await call('eth_getLogs', [{ address: req.query.logs, fromBlock: '0x0', toBlock: 'latest' }]),
+    };
+  }
   if (req.query?.deploy === '1') {
     // Dry-run the vault deployment on Aevum (no signature, no funds moved).
     try {
