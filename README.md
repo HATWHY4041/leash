@@ -6,7 +6,7 @@
 
 🔗 **Live demo:** https://leash-aevum.vercel.app · health check: [/api/health](https://leash-aevum.vercel.app/api/health)
 📜 **Contract:** [`contracts/LeashVault.sol`](contracts/LeashVault.sol)
-🧪 **Tests:** `npm test` (16 passing)
+🧪 **Tests:** `npm test` (17 passing)
 
 ---
 
@@ -115,13 +115,17 @@ With no AI configured, the built-in parser takes over automatically. Optional: `
 | Gas token | tQDAY ([faucet](https://faucet.qday.info/en)) |
 | tUSD8 | `0x456569838f1d43009A91ebA4263147Afd7233483` (ERC-20, 6 decimals) |
 
-### Deployed instances
+### Deployed instances (Aevum Testnet, chain 44005)
 
-| What | Address / tx |
+| What | Link |
 |---|---|
-| Demo LeashVault | _add after first deploy from the live app_ |
-| Example agent payment tx | _add_ |
-| Example approval tx | _add_ |
+| Demo LeashVault | [`0x91D4eCac41FECf68d0A97118637B1AFc8d59b278`](https://explorer-test.qday.info/address/0x91D4eCac41FECf68d0A97118637B1AFc8d59b278) |
+| Vault deployed by the assistant key, owner = user wallet | [`0x5b8b04…7d9d`](https://explorer-test.qday.info/tx/0x5b8b044e50fa414e57be89fcb40798b33e1829549b4e5c3f1822906fa1db7d9d) |
+| Owner approves payee "Tunde" (`setPayee`) | [`0x5abe98…fd5d`](https://explorer-test.qday.info/tx/0x5abe9824b7f2cf8d70b662bedb36bc5573a1c0783ba53a41b600d5b74e69fd5d) |
+| AI assistant pays Tunde 0.3 tUSD8 from chat (`agentPay`, no wallet pop-up) | [`0x2b41c5…a376`](https://explorer-test.qday.info/tx/0x2b41c59f56c25aa6bb230d9232cda14efb3243ce7814956bd29c4147afb2a376) |
+| Owner pulls the kill switch (`setPaused(true)`) | [`0xdc3b00…4a0a`](https://explorer-test.qday.info/tx/0xdc3b00731a2e84f049cd71540dec73a274b8ae83b40ec409b1ed0dc3017a4a0a) |
+| Owner wallet | [`0x9B65…C326`](https://explorer-test.qday.info/address/0x9B65BfC911c63834Ab7423dbF78CD908A9b8C326) |
+| Assistant key | [`0x6ec1…cA8e`](https://explorer-test.qday.info/address/0x6ec15993484bf0d8C9e938236c6E0A3E0cA6cA8e) |
 
 ## Tests
 
@@ -129,6 +133,7 @@ With no AI configured, the built-in parser takes over automatically. Optional: `
 
 ```
 LeashVault
+  ✓ owner is the passed owner, not the deployer
   ✓ rejects bad limits at deploy (threshold > daily)
   ✓ agent cannot pay someone who is not an approved payee
   ✓ only owner can approve payees
@@ -146,7 +151,7 @@ LeashVault
   ✓ owner can change limits but not to invalid values
   ✓ only owner can withdraw
 
-16 passing
+17 passing
 ```
 
 The full UI was also tested end to end in a headless browser against a local chain: deploy → add payee → deposit → instant AI payment → over-threshold request → owner approval → kill switch → activity log.
