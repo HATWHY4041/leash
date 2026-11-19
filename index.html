@@ -3,141 +3,195 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Leash — an AI payment assistant on a leash</title>
-  <meta name="description" content="Tell Leash who to pay in plain English. A smart contract on QDay Aevum makes sure it can never overspend." />
+  <title>Leash: let AI pay bills without handing it your wallet</title>
+  <meta name="description" content="Tell Leash who to pay in plain words. A contract on QDay Aevum checks every payment against your rules before any money moves." />
+  <meta name="theme-color" content="#F2F4F8" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
   <header class="top">
-    <div class="brand"><img src="/favicon.svg" alt="" width="28" height="28" /><span>Leash</span><em>on Aevum Testnet</em></div>
-    <button id="connectBtn" class="btn small">Connect wallet</button>
+    <a class="brand" href="/" aria-label="Leash home"><img src="/favicon.svg" alt="" width="30" height="30" /><span>Leash</span></a>
+    <div class="top-right">
+      <span class="net"><i></i>Aevum Testnet</span>
+      <button id="connectBtn" class="btn btn-quiet">Connect wallet</button>
+    </div>
   </header>
 
   <main id="app">
     <!-- Landing / setup -->
-    <section id="setup" class="card hidden">
-      <h1>Your AI pays bills.<br /><span class="accent">The contract holds the leash.</span></h1>
-      <p class="lead">Type “pay Tunde 20 for the logo”. Leash's assistant pays approved people instantly, inside limits you set on-chain. Anything bigger waits for your approval. One tap freezes it.</p>
-      <ul class="rules">
-        <li><b>Allowlist</b> — it can only pay people you approved</li>
-        <li><b>Daily limit</b> — a hard cap per 24 hours</li>
-        <li><b>Approval threshold</b> — big payments need your signature</li>
-        <li><b>Kill switch</b> — pause or revoke the AI key anytime</li>
-      </ul>
-      <div id="setupConnect"><button class="btn big" data-action="connect">Connect wallet to start</button>
-        <p class="hint">Use MetaMask (desktop or the MetaMask app's browser). Leash adds the Aevum network for you.</p></div>
-      <div id="setupCreate" class="hidden">
-        <h3>Create your Leash vault</h3>
-        <div class="grid2">
-          <label>Daily limit (tUSD8)<input id="newDaily" type="number" min="0.01" step="0.01" value="10" /></label>
-          <label>Ask me above (tUSD8)<input id="newThreshold" type="number" min="0" step="0.01" value="3" /></label>
+    <section id="setup" class="hidden">
+      <div class="hero">
+        <div class="hero-copy">
+          <h1>Let AI pay your bills without handing it your wallet.</h1>
+          <p class="lead">Tell Leash who to pay in plain words. A contract on Aevum checks every payment against your rules before any tUSD8 moves.</p>
+          <div id="setupConnect">
+            <button class="btn btn-primary btn-lg" data-action="connect">Connect wallet to start</button>
+            <p class="hint">Works with MetaMask on desktop or in the MetaMask app. Leash adds the Aevum network for you.</p>
+          </div>
         </div>
-        <button class="btn big" data-action="create">Deploy my vault</button>
-        <p class="hint">This deploys your own LeashVault contract from your wallet, creates a separate assistant key in this browser, and sends it 0.5 tQDAY for gas. Need test tokens? <a href="https://faucet.qday.info/en" target="_blank" rel="noopener">Faucet</a>.</p>
-        <details><summary>Already have a vault?</summary>
-          <div class="row"><input id="loadAddr" placeholder="0x… vault address" /><button class="btn" data-action="load">Load</button></div>
-          <p class="hint">The assistant key lives in the browser that created it. On a new browser, load the vault and rotate the key in Rules.</p>
-        </details>
+
+        <figure class="demo" aria-label="Example: the assistant pays Tunde after every rule passes">
+          <div class="demo-msg">pay Tunde 2 for the logo</div>
+          <div class="demo-verdict">
+            <p class="demo-title">Checked by your LeashVault contract</p>
+            <ul>
+              <li class="pass" style="--d:1">Tunde is on your approved list</li>
+              <li class="pass" style="--d:2">2 is under your 3 tUSD8 ask-me amount</li>
+              <li class="pass" style="--d:3">8 of 10 tUSD8 left today</li>
+              <li class="pass" style="--d:4">Assistant is not paused</li>
+            </ul>
+            <p class="demo-result">Paid 2 tUSD8 to Tunde</p>
+          </div>
+          <div class="demo-msg">send Kemi 50 for rent</div>
+          <div class="demo-verdict hold">
+            <ul>
+              <li class="hold" style="--d:6">50 is over your ask-me amount</li>
+            </ul>
+            <p class="demo-result">Waiting for your approval</p>
+          </div>
+        </figure>
       </div>
+
+      <section class="rules" aria-labelledby="rulesTitle">
+        <h2 id="rulesTitle">Four rules the AI can't talk its way around</h2>
+        <dl>
+          <div><dt>Approved payees</dt><dd>It can only pay addresses you added. A tricked prompt can't send money to a stranger.</dd></div>
+          <div><dt>Daily limit</dt><dd>A hard cap for every 24 hours, however many times it's asked.</dd></div>
+          <div><dt>Ask-me amount</dt><dd>Bigger payments become requests that you approve or reject with your own wallet.</dd></div>
+          <div><dt>Pause and revoke</dt><dd>Freeze the assistant or replace its key in one tap. The old key stops working.</dd></div>
+        </dl>
+        <p class="rules-note">These live in your own contract, not in the AI. Even if the assistant's key leaked, the most anyone could send is today's limit, and only to people you trust.</p>
+      </section>
+
+      <section id="setupCreate" class="panel create hidden" aria-labelledby="createTitle">
+        <h2 id="createTitle">Set up your vault</h2>
+        <p class="hint">You'll deploy your own LeashVault contract. Leash also creates a separate key for the assistant in this browser and sends it 0.5 tQDAY for gas.</p>
+        <div class="grid2">
+          <label>Daily limit<span class="field"><input id="newDaily" type="number" min="0.01" step="0.01" value="10" inputmode="decimal" /><em>tUSD8</em></span></label>
+          <label>Ask me for payments above<span class="field"><input id="newThreshold" type="number" min="0" step="0.01" value="3" inputmode="decimal" /><em>tUSD8</em></span></label>
+        </div>
+        <button class="btn btn-primary btn-lg" data-action="create">Deploy my vault</button>
+        <p class="hint">Need test tokens? Claim tQDAY and tUSD8 from the <a href="https://faucet.qday.info/en" target="_blank" rel="noopener">QDay faucet</a>.</p>
+        <details>
+          <summary>Open a vault I already have</summary>
+          <div class="row"><input id="loadAddr" placeholder="Vault address (0x…)" aria-label="Vault address" /><button class="btn btn-quiet" data-action="load">Open vault</button></div>
+          <p class="hint">The assistant's key stays in the browser that created it. In a new browser, open the vault and then replace the key under Rules.</p>
+        </details>
+      </section>
     </section>
 
     <!-- Dashboard -->
     <section id="dash" class="hidden">
-      <div class="stats">
-        <div class="stat"><span>Vault balance</span><b id="sBal">–</b><small>tUSD8</small></div>
-        <div class="stat"><span>Left today</span><b id="sLeft">–</b><small id="sLimit">of – limit</small><div class="bar"><i id="sBar"></i></div></div>
-        <div class="stat"><span>Ask me above</span><b id="sThr">–</b><small>tUSD8</small></div>
-        <div class="stat" id="statusStat"><span>Assistant</span><b id="sStatus">–</b><small id="sGas">gas –</small></div>
-      </div>
+      <section class="meter panel" aria-label="Today's spending">
+        <div class="meter-head">
+          <div>
+            <p class="meter-label">Assistant can still spend today</p>
+            <p class="meter-big"><b id="sLeft">–</b> <span>tUSD8</span></p>
+          </div>
+          <div class="status" id="statusStat"><i></i><span id="sStatus">–</span></div>
+        </div>
+        <div class="track" aria-hidden="true"><i id="sBar"></i></div>
+        <p class="meter-foot"><span id="sLimit">–</span></p>
+        <dl class="facts">
+          <div><dt>In vault</dt><dd><b id="sBal">–</b> tUSD8</dd></div>
+          <div><dt>Asks you above</dt><dd><b id="sThr">–</b> tUSD8</dd></div>
+          <div><dt>Assistant gas</dt><dd id="sGas">–</dd></div>
+        </dl>
+      </section>
 
-      <nav class="tabs">
+      <nav class="tabs" aria-label="Sections">
         <button data-tab="chat" class="on">Chat</button>
-        <button data-tab="approvals">Approvals <span id="pendBadge" class="badge hidden">0</span></button>
+        <button data-tab="approvals">Approvals<span id="pendBadge" class="badge hidden">0</span></button>
         <button data-tab="payees">Payees</button>
         <button data-tab="rules">Rules</button>
         <button data-tab="activity">Activity</button>
       </nav>
 
-      <div id="tab-chat" class="tab card">
-        <div id="chatLog" class="chat"></div>
+      <div id="tab-chat" class="tab panel">
+        <div id="chatLog" class="chat" aria-live="polite"></div>
         <form id="chatForm" class="chatbar">
-          <input id="chatInput" autocomplete="off" placeholder="e.g. pay Tunde 2 for the logo" />
-          <button class="btn">Send</button>
+          <input id="chatInput" autocomplete="off" placeholder="Try: pay Tunde 2 for the logo" aria-label="Message the assistant" />
+          <button class="btn btn-primary">Send</button>
         </form>
         <div class="chips">
           <button data-say="What's my balance?">Balance</button>
           <button data-say="How much can you still spend today?">Left today</button>
-          <button data-say="Who can you pay?">Payees</button>
-          <button data-say="Anything waiting for approval?">Pending</button>
+          <button data-say="Who can you pay?">Who can you pay?</button>
+          <button data-say="Anything waiting for approval?">Waiting for me</button>
         </div>
-        <label class="toggle"><input type="checkbox" id="confirmFirst" /> Ask me to confirm every payment, even small ones</label>
+        <label class="toggle"><input type="checkbox" id="confirmFirst" /> Ask me before every payment, even small ones</label>
       </div>
 
-      <div id="tab-approvals" class="tab card hidden">
+      <div id="tab-approvals" class="tab panel hidden">
         <h3>Waiting for you</h3>
-        <p class="hint">Payments above your threshold or over today's limit land here. Requests expire after 24 hours.</p>
+        <p class="hint">Payments over your ask-me amount or over today's limit wait here. Unanswered requests expire after 24 hours.</p>
         <div id="pendingList" class="list"></div>
-        <h3>History</h3>
+        <h3>Decided</h3>
         <div id="doneList" class="list"></div>
       </div>
 
-      <div id="tab-payees" class="tab card hidden">
+      <div id="tab-payees" class="tab panel hidden">
         <h3>Approved payees</h3>
-        <p class="hint">The assistant can only ever pay these addresses. This list lives in the contract, not in the AI.</p>
+        <p class="hint">The assistant can only ever pay these addresses. The list is stored in your contract, so the AI can't add to it.</p>
         <div id="payeeList" class="list"></div>
         <h3>Add a payee</h3>
         <div class="grid2">
           <label>Name<input id="pName" placeholder="Tunde" maxlength="32" /></label>
           <label>Wallet address<input id="pAddr" placeholder="0x…" /></label>
         </div>
-        <button class="btn" data-action="addPayee">Approve payee</button>
+        <button class="btn btn-primary" data-action="addPayee">Add payee</button>
       </div>
 
-      <div id="tab-rules" class="tab card hidden">
-        <h3>Spending rules</h3>
+      <div id="tab-rules" class="tab panel hidden">
+        <h3>Limits</h3>
         <div class="grid2">
-          <label>Daily limit (tUSD8)<input id="rDaily" type="number" step="0.01" /></label>
-          <label>Ask me above (tUSD8)<input id="rThr" type="number" step="0.01" /></label>
+          <label>Daily limit<span class="field"><input id="rDaily" type="number" step="0.01" inputmode="decimal" /><em>tUSD8</em></span></label>
+          <label>Ask me for payments above<span class="field"><input id="rThr" type="number" step="0.01" inputmode="decimal" /><em>tUSD8</em></span></label>
         </div>
-        <button class="btn" data-action="saveLimits">Save limits</button>
+        <button class="btn btn-primary" data-action="saveLimits">Save limits</button>
 
-        <h3>Kill switch</h3>
+        <h3>Stop the assistant</h3>
+        <p class="hint">Pausing blocks every payment until you resume. Replacing the key makes the old one useless. Removing it switches the assistant off for good until you add a new key.</p>
         <div class="row wrap">
-          <button class="btn danger" id="pauseBtn" data-action="togglePause">Pause assistant</button>
-          <button class="btn ghost" data-action="rotate">Rotate assistant key</button>
-          <button class="btn ghost" data-action="revoke">Revoke assistant</button>
+          <button class="btn btn-danger" id="pauseBtn" data-action="togglePause">Pause assistant</button>
+          <button class="btn btn-quiet" data-action="rotate">Replace assistant key</button>
+          <button class="btn btn-quiet" data-action="revoke">Remove assistant</button>
         </div>
 
-        <h3>Money</h3>
+        <h3>Move money</h3>
         <div class="grid2">
-          <label>Deposit from my wallet<input id="depAmt" type="number" step="0.01" placeholder="5" /></label>
-          <label>Withdraw to my wallet<input id="wdAmt" type="number" step="0.01" placeholder="5" /></label>
+          <label>Deposit from my wallet<span class="field"><input id="depAmt" type="number" step="0.01" placeholder="5" inputmode="decimal" /><em>tUSD8</em></span></label>
+          <label>Withdraw to my wallet<span class="field"><input id="wdAmt" type="number" step="0.01" placeholder="5" inputmode="decimal" /><em>tUSD8</em></span></label>
         </div>
         <div class="row wrap">
-          <button class="btn" data-action="deposit">Deposit</button>
-          <button class="btn ghost" data-action="withdraw">Withdraw</button>
-          <button class="btn ghost" data-action="topupGas">Top up assistant gas (0.5 tQDAY)</button>
+          <button class="btn btn-primary" data-action="deposit">Deposit</button>
+          <button class="btn btn-quiet" data-action="withdraw">Withdraw</button>
+          <button class="btn btn-quiet" data-action="topupGas">Add 0.5 tQDAY gas for the assistant</button>
         </div>
         <p class="hint" id="walletInfo"></p>
 
-        <h3>Contracts</h3>
-        <p class="mono" id="contractInfo"></p>
-        <button class="btn ghost small" data-action="forget">Forget this vault in this browser</button>
+        <h3>Contract details</h3>
+        <p class="addr" id="contractInfo"></p>
+        <button class="btn btn-quiet btn-sm" data-action="forget">Forget this vault in this browser</button>
       </div>
 
-      <div id="tab-activity" class="tab card hidden">
-        <h3>On-chain activity</h3>
-        <p class="hint">Read straight from the vault's events on Aevum Testnet.</p>
+      <div id="tab-activity" class="tab panel hidden">
+        <h3>Activity</h3>
+        <p class="hint">Every event from your vault, read directly from Aevum Testnet.</p>
         <div id="activityList" class="list"></div>
       </div>
     </section>
   </main>
 
-  <div id="toast" class="toast hidden"></div>
-  <footer class="foot">Leash · Aevum Builder Challenge #1 · testnet tokens only · <a href="https://github.com/HATWHY4041/leash" target="_blank" rel="noopener">source</a></footer>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <footer class="foot">
+    <span>Built for Aevum Builder Challenge #1. Testnet tokens only.</span>
+    <a href="https://github.com/HATWHY4041/leash" target="_blank" rel="noopener">Source code</a>
+  </footer>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>

@@ -84,17 +84,22 @@ function render() {
   const d = S.d;
   $('sBal').textContent = fmt(d.balance);
   $('sLeft').textContent = fmt(d.left);
-  $('sLimit').textContent = `of ${fmt(d.daily)} daily limit`;
-  $('sBar').style.width = d.daily > 0n ? `${Math.max(0, Math.min(100, (fromUnits(d.left) / fromUnits(d.daily)) * 100))}%` : '0';
+  const spent = d.daily > d.left ? d.daily - d.left : 0n;
+  const pct = d.daily > 0n ? Math.min(100, (fromUnits(spent) / fromUnits(d.daily)) * 100) : 0;
+  $('sLimit').textContent = `Spent ${fmt(spent)} of your ${fmt(d.daily)} tUSD8 daily limit. Resets 24 hours after the first payment.`;
+  $('sBar').style.width = `${pct}%`;
+  $('sBar').parentElement.classList.toggle('hot', pct >= 80);
   $('sThr').textContent = fmt(d.thr);
 
   const myAgent = S.agentKey ? privateKeyToAccount(S.agentKey).address : null;
   const revoked = !d.agent || /^0x0+$/.test(d.agent);
   const keyMismatch = myAgent && !revoked && d.agent.toLowerCase() !== myAgent.toLowerCase();
-  $('sStatus').textContent = d.paused ? 'Paused' : revoked ? 'Revoked' : keyMismatch || !myAgent ? 'No key here' : 'Active';
-  $('statusStat').classList.toggle('paused', d.paused || revoked);
-  $('sGas').textContent = myAgent ? `gas ${Number(formatEther(d.agentGas)).toFixed(3)} tQDAY` : 'rotate key in Rules';
-  $('pauseBtn').textContent = d.paused ? 'Unpause assistant' : 'Pause assistant';
+  const noKey = !myAgent || keyMismatch;
+  $('sStatus').textContent = d.paused ? 'Paused' : revoked ? 'Assistant removed' : noKey ? 'Key not in this browser' : 'Active';
+  $('statusStat').className = 'status' + (d.paused || revoked ? ' off' : noKey ? ' warn' : '');
+  $('sGas').textContent = myAgent ? `${Number(formatEther(d.agentGas)).toFixed(3)} tQDAY` : 'Replace the key under Rules';
+  $('pauseBtn').textContent = d.paused ? 'Resume assistant' : 'Pause assistant';
+  $('pauseBtn').className = 'btn ' + (d.paused ? 'btn-primary' : 'btn-danger');
 
   if (document.activeElement !== $('rDaily')) $('rDaily').value = fromUnits(d.daily);
   if (document.activeElement !== $('rThr')) $('rThr').value = fromUnits(d.thr);
@@ -103,8 +108,8 @@ function render() {
   const allowed = d.payees.filter((p) => p.allowed);
   $('payeeList').replaceChildren(...(allowed.length ? allowed.map((p) => el('div', { class: 'item' },
     el('div', {}, el('b', {}, p.name), el('div', { class: 'meta mono' }, p.address)),
-    el('button', { class: 'btn ghost small', onclick: (e) => removePayee(e.target, p) }, 'Remove'),
-  )) : [el('div', { class: 'empty' }, 'No payees yet. Add someone below — the assistant cannot pay anyone until you do.')]));
+    el('button', { class: 'btn btn-quiet btn-sm', onclick: (e) => removePayee(e.target, p) }, 'Remove'),
+  )) : [el('div', { class: 'empty' }, 'No payees yet. Add someone below. The assistant can’t pay anyone until you do.')]));
 
   // requests
   const nameOf = (a) => d.payees.find((p) => p.address.toLowerCase() === a.toLowerCase())?.name || short(a);
@@ -116,13 +121,13 @@ function render() {
     el('div', {}, el('div', { class: 'amt' }, `${fmt(r.amount)} tUSD8 → ${nameOf(r.to)}`),
       el('div', { class: 'meta' }, `${r.memo || 'no memo'} · requested ${new Date(r.createdAt * 1000).toLocaleString()}`)),
     el('div', { class: 'row' },
-      el('button', { class: 'btn small', onclick: (e) => decide(e.target, r.id, true) }, 'Approve'),
-      el('button', { class: 'btn ghost small', onclick: (e) => decide(e.target, r.id, false) }, 'Reject')),
-  )) : [el('div', { class: 'empty' }, 'Nothing waiting. 🎉')]));
+      el('button', { class: 'btn btn-primary btn-sm', onclick: (e) => decide(e.target, r.id, true) }, 'Approve'),
+      el('button', { class: 'btn btn-quiet btn-sm', onclick: (e) => decide(e.target, r.id, false) }, 'Reject')),
+  )) : [el('div', { class: 'empty' }, 'Nothing is waiting for you.')]));
   $('doneList').replaceChildren(...(done.length ? done.map((r) => el('div', { class: 'item' },
     el('div', {}, el('div', {}, `${fmt(r.amount)} tUSD8 → ${nameOf(r.to)}`), el('div', { class: 'meta' }, r.memo || '')),
     el('span', { class: 'pill ' + (r.status === 1 ? 'paid' : 'bad') }, STATUS[r.status]),
-  )) : [el('div', { class: 'empty' }, 'No past requests.')]));
+  )) : [el('div', { class: 'empty' }, 'No decided requests yet.')]));
 
   $('contractInfo').replaceChildren(
     'Vault: ', el('a', { href: addrLink(S.vault.address), target: '_blank' }, S.vault.address), el('br'),
@@ -131,7 +136,7 @@ function render() {
     'tUSD8: ', el('a', { href: addrLink(TUSD8), target: '_blank' }, TUSD8),
   );
   if (S.owner && d.vaultOwner && S.owner.toLowerCase() !== d.vaultOwner.toLowerCase()) {
-    toast('Connected wallet is not this vault’s owner. Owner actions will fail.', true);
+    toast('This wallet doesn’t own the vault, so approvals and rule changes won’t work.', true);
   }
 }
 
@@ -177,7 +182,7 @@ async function renderActivity() {
       const [cls, title, sub] = line(l);
       return el('div', { class: 'item' },
         el('div', {}, el('div', {}, title), el('div', { class: 'meta' }, sub || '')),
-        el('a', { class: 'pill ' + cls, href: txLink(l.transactionHash), target: '_blank' }, 'tx ↗'));
+        el('a', { class: 'pill ' + cls, href: txLink(l.transactionHash), target: '_blank' }, 'View tx'));
     });
     box.replaceChildren(...(rows.length ? rows : [el('div', { class: 'empty' }, 'No activity yet.')]));
   } catch (e) {
@@ -213,7 +218,7 @@ async function createVault(btn) {
     const r = await waitTx(hash);
     saveVault(r.contractAddress, r.blockNumber);
     saveAgentKey(key);
-    toast('Vault deployed. Now fund the assistant’s gas.');
+    toast('Vault deployed. Confirm the 0.5 tQDAY gas for the assistant.');
     try {
       const g = await w.sendTransaction({ to: agent, value: parseEther('0.5') });
       await waitTx(g);
@@ -240,7 +245,7 @@ async function addPayee(btn) {
     if (S.d.payees.some((p) => p.allowed && p.name.toLowerCase() === name.toLowerCase())) throw new Error('You already have a payee with that name.');
     await ownerWrite('setPayee', [getAddress(addr), name, true]);
     $('pName').value = ''; $('pAddr').value = '';
-    toast(`${name} approved`); await refresh();
+    toast(`${name} added`); await refresh();
   });
 }
 async function removePayee(btn, p) {
@@ -268,13 +273,13 @@ async function rotate(btn) {
     await ownerWrite('setAgent', [addr]);
     saveAgentKey(key);
     try { await waitTx(await owner().sendTransaction({ to: addr, value: parseEther('0.5') })); } catch (e) { toast('Gas top-up skipped', true); }
-    toast('New assistant key active. The old key is now useless.'); await refresh();
+    toast('Assistant key replaced. The old key no longer works.'); await refresh();
   });
 }
 async function revoke(btn) {
   await busy(btn, async () => {
     await ownerWrite('setAgent', ['0x0000000000000000000000000000000000000000']);
-    toast('Assistant revoked'); await refresh();
+    toast('Assistant removed'); await refresh();
   });
 }
 async function deposit(btn) {
@@ -295,7 +300,7 @@ async function withdraw(btn) {
 }
 async function topupGas(btn) {
   await busy(btn, async () => {
-    if (!S.agentKey) throw new Error('No assistant key in this browser. Rotate the key first.');
+    if (!S.agentKey) throw new Error('This browser doesn’t have the assistant’s key. Replace the key first.');
     await ensureAevum();
     await waitTx(await owner().sendTransaction({ to: privateKeyToAccount(S.agentKey).address, value: parseEther('0.5') }));
     toast('Assistant gas topped up'); await refresh();
@@ -317,23 +322,23 @@ async function handleChat(text) {
   const names = S.d.payees.filter((p) => p.allowed).map((p) => p.name);
   const it = await parseIntent(text, names);
   thinking.remove();
-  const src = el('span', { class: 'src' }, it.source === 'ai' ? 'understood by AI · enforced by contract' : 'understood by built-in parser · enforced by contract');
+  const src = el('span', { class: 'src' }, it.source === 'ai' ? 'Read by AI. Checked by your contract.' : 'Read by the built-in parser. Checked by your contract.');
   const d = S.d;
 
   switch (it.intent) {
     case 'balance': return say('bot', `The vault holds ${fmt(d.balance)} tUSD8.`, src);
     case 'spent': return say('bot', `I can still spend ${fmt(d.left)} of your ${fmt(d.daily)} tUSD8 daily limit. Anything above ${fmt(d.thr)} in one go needs your approval.`, src);
-    case 'payees': return say('bot', names.length ? `I can pay: ${names.join(', ')}. Nobody else.` : 'I can’t pay anyone yet — add payees in the Payees tab.', src);
+    case 'payees': return say('bot', names.length ? `I can pay: ${names.join(', ')}. Nobody else.` : 'I can’t pay anyone yet. Add people under Payees.', src);
     case 'pending': {
       const p = d.requests.filter((r) => r.status === 0);
       return say('bot', p.length ? `${p.length} payment${p.length > 1 ? 's' : ''} waiting for you in Approvals.` : 'Nothing is waiting for approval.', src);
     }
     case 'pause': {
-      const b = el('button', { class: 'btn danger small', onclick: (e) => togglePause(e.target) }, d.paused ? 'Unpause' : 'Pause me now');
-      return say('bot', d.paused ? 'I’m already paused. Unpause?' : 'Only you can pull the kill switch — tap to sign it in your wallet.', el('div', { class: 'row' }, b), src);
+      const b = el('button', { class: 'btn ' + (d.paused ? 'btn-primary' : 'btn-danger') + ' btn-sm', onclick: (e) => togglePause(e.target) }, d.paused ? 'Resume assistant' : 'Pause assistant');
+      return say('bot', d.paused ? 'I’m already paused. Resume me?' : 'Only you can pull the kill switch — tap to sign it in your wallet.', el('div', { class: 'row' }, b), src);
     }
     case 'help': case 'unknown':
-      return say('bot', it.intent === 'unknown' ? 'I didn’t catch that. ' : '',
+      return say('bot', it.intent === 'unknown' ? 'I didn’t understand that. ' : '',
         'Try “pay Tunde 2 for the logo”, “how much is left today?”, “who can you pay?” or “pause”.', src);
     case 'pay': return planPayment(it, src);
   }
@@ -343,7 +348,7 @@ async function planPayment(it, src) {
   const d = S.d;
   if (!it.payee) {
     return say('bot', it.mentioned
-      ? `${it.mentioned} isn’t an approved payee, so I can’t pay them. Add them in Payees first — that part is yours to decide, not mine.`
+      ? `${it.mentioned} isn’t on your payee list, so I can’t pay them. Only you can add people, under Payees.`
       : 'Who should I pay? Say a name from your Payees list.', src);
   }
   if (!it.amount) return say('bot', `How much should I send ${it.payee}?`, src);
@@ -353,24 +358,24 @@ async function planPayment(it, src) {
   const myAgent = S.agentKey ? privateKeyToAccount(S.agentKey).address : null;
   const keyOk = myAgent && d.agent && d.agent.toLowerCase() === myAgent.toLowerCase();
   const rows = [
-    ['y', `${it.payee} is an approved payee (${short(p.address)})`],
-    d.paused ? ['x', 'Vault is paused'] : ['y', 'Kill switch is off'],
-    amt <= d.thr ? ['y', `${it.amount} ≤ ${fmt(d.thr)} approval threshold`] : ['n', `${it.amount} is above your ${fmt(d.thr)} threshold → needs your approval`],
-    amt <= d.left ? ['y', `Within today’s remaining ${fmt(d.left)}`] : ['n', `Over today’s remaining ${fmt(d.left)} → needs your approval`],
-    amt <= d.balance ? ['y', `Vault has ${fmt(d.balance)}`] : ['x', `Vault only has ${fmt(d.balance)} — deposit first`],
+    ['y', `${it.payee} is on your approved list (${short(p.address)})`],
+    d.paused ? ['x', 'Assistant is paused'] : ['y', 'Assistant is not paused'],
+    amt <= d.thr ? ['y', `${it.amount} is within your ${fmt(d.thr)} tUSD8 ask-me amount`] : ['n', `${it.amount} is over your ${fmt(d.thr)} tUSD8 ask-me amount, so you’ll need to approve it`],
+    amt <= d.left ? ['y', `${fmt(d.left)} of ${fmt(d.daily)} tUSD8 left today`] : ['n', `Only ${fmt(d.left)} tUSD8 left today, so you’ll need to approve it`],
+    amt <= d.balance ? ['y', `Vault holds ${fmt(d.balance)} tUSD8`] : ['x', `Vault only holds ${fmt(d.balance)} tUSD8. Deposit first.`],
   ];
   const head = `Pay ${it.amount} tUSD8 to ${it.payee}${it.memo ? ` for “${it.memo}”` : ''}.`;
   if (d.paused) return say('bot', head, checkBox(rows), 'I’m paused, so I won’t send anything.', src);
-  if (!keyOk) return say('bot', head, checkBox(rows), 'This browser doesn’t hold the active assistant key. Rotate the key in Rules to use me here.', src);
-  if (d.agentGas < parseEther('0.002')) return say('bot', head, checkBox(rows), 'I’m out of gas. Tap “Top up assistant gas” in Rules.', src);
+  if (!keyOk) return say('bot', head, checkBox(rows), 'This browser doesn’t have the assistant’s key. Replace the key under Rules to use me here.', src);
+  if (d.agentGas < parseEther('0.002')) return say('bot', head, checkBox(rows), 'I’m out of gas. Add gas under Rules.', src);
 
   const willQueue = amt > d.thr || amt > d.left;
   const go = () => executePay(p, it, amt);
   if ($('confirmFirst').checked || willQueue) {
-    const btn = el('button', { class: 'btn small', onclick: (e) => { e.target.disabled = true; go(); } }, willQueue ? 'Send request for approval' : 'Confirm payment');
+    const btn = el('button', { class: 'btn btn-primary btn-sm', onclick: (e) => { e.target.disabled = true; go(); } }, willQueue ? 'Send request for approval' : 'Confirm payment');
     return say('bot', head, checkBox(rows), el('div', { class: 'row' }, btn), src);
   }
-  say('bot', head, checkBox(rows), 'All rules pass — paying now.', src);
+  say('bot', head, checkBox(rows), 'Every rule passes. Paying now.', src);
   return go();
 }
 
@@ -383,15 +388,17 @@ async function executePay(p, it, amt) {
       args: [p.address, amt, (it.memo || '').slice(0, 60)],
     });
     const hash = await ac.writeContract(request);
-    status.textContent = 'Sent to Aevum, waiting for confirmation…';
+    status.textContent = 'Sent to Aevum. Waiting for confirmation…';
     await waitTx(hash);
     const [executed, id] = result;
+    status.classList.add(executed ? 'ok' : 'wait');
     status.replaceChildren(
-      executed ? `✅ Paid ${it.amount} tUSD8 to ${it.payee}.` : `🟡 Filed request #${id} — waiting for your approval in Approvals.`,
+      executed ? `Paid ${it.amount} tUSD8 to ${it.payee}.` : `Filed request #${id}. Approve or reject it under Approvals.`,
       ' ', el('a', { href: txLink(hash), target: '_blank' }, 'View tx'));
     await refresh();
   } catch (e) {
-    status.textContent = '⛔ Blocked: ' + explainError(e);
+    status.classList.add('err');
+    status.textContent = 'Blocked: ' + explainError(e);
   }
 }
 
@@ -404,7 +411,7 @@ function showSetup() {
 async function showDash() {
   $('setup').classList.add('hidden'); $('dash').classList.remove('hidden');
   if (!$('chatLog').children.length) {
-    say('bot', 'Hi! I’m your Leash assistant. Tell me who to pay and how much. I can only pay your approved payees, within the limits you set on-chain — I physically can’t do more.');
+    say('bot', 'Tell me who to pay and how much, like “pay Tunde 2 for the logo”. I can only pay people on your list, within the limits in your contract.');
   }
   try { await refresh(); } catch (e) { toast('Could not read the vault: ' + explainError(e), true); }
   renderWallet().catch(() => {});

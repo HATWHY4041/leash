@@ -83,13 +83,13 @@ export async function waitTx(hash) {
 
 const FRIENDLY = {
   NotOwner: 'Only the vault owner can do that.',
-  NotAgent: 'The assistant key is not authorised on this vault (revoked or rotated).',
-  IsPaused: 'The vault is paused. Unpause it in Rules before the assistant can spend.',
-  PayeeNotApproved: 'That address is not an approved payee.',
+  NotAgent: 'The assistant’s key no longer works on this vault (it was removed or replaced).',
+  IsPaused: 'The assistant is paused. Resume it under Rules first.',
+  PayeeNotApproved: 'That address isn’t on your payee list.',
   ZeroAmount: 'Amount must be more than zero.',
   BadRequest: 'That request is no longer pending (already handled or expired).',
-  TransferFailed: 'Token transfer failed — the vault probably does not have enough tUSD8.',
-  BadLimits: 'The approval threshold cannot be higher than the daily limit.',
+  TransferFailed: 'The transfer failed. The vault probably doesn’t have enough tUSD8.',
+  BadLimits: 'The ask-me amount can’t be higher than the daily limit.',
 };
 
 export function explainError(e) {
@@ -101,7 +101,7 @@ export function explainError(e) {
     if (raw) {
       try { const d = decodeErrorResult({ abi: VAULT_ABI, data: raw }); if (FRIENDLY[d.errorName]) return FRIENDLY[d.errorName]; } catch {}
     }
-    if (/insufficient funds/i.test(e.message)) return 'Not enough tQDAY for gas. Top up from the faucet.';
+    if (/insufficient funds/i.test(e.message)) return 'Not enough tQDAY for gas. Claim some from the faucet.';
     if (/user rejected|denied/i.test(e.message)) return 'You cancelled it in your wallet.';
     return e.shortMessage || e.message;
   }
