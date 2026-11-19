@@ -74,6 +74,14 @@ export function agentClient(privateKey) {
   return createWalletClient({ account, chain: aevum, transport: rpcTransport() });
 }
 
+// ------------------------------------------------------------- fees
+// Aevum runs cdk-erigon (Polygon CDK). Legacy (type-0) transactions with an explicit gas price are the
+// most compatible choice for both MetaMask and locally signed assistant transactions.
+export async function legacyFees() {
+  const gasPrice = await pub.getGasPrice();
+  return { type: 'legacy', gasPrice: (gasPrice * 11n) / 10n };
+}
+
 // ------------------------------------------------------------- helpers
 export async function waitTx(hash) {
   const r = await pub.waitForTransactionReceipt({ hash, timeout: 120_000 });

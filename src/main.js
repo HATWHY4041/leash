@@ -2,7 +2,7 @@ import { isAddress, getAddress, parseEther, formatEther, encodeDeployData } from
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   pub, connectOwner, ownerClient, agentClient, waitTx, explainError, hasWallet, ensureAevum,
-  VAULT_ABI, VAULT_BYTECODE, ERC20_ABI, TUSD8, toUnits, fromUnits, fmt, short, txLink, addrLink, FAUCET,
+  VAULT_ABI, VAULT_BYTECODE, ERC20_ABI, TUSD8, legacyFees, toUnits, fromUnits, fmt, short, txLink, addrLink, FAUCET,
 } from './chain.js';
 import { parseIntent } from './parser.js';
 
@@ -200,7 +200,7 @@ async function ownerWrite(functionName, args) {
   const w = owner();
   const { request } = await pub.simulateContract({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
   const gas = await pub.estimateContractGas({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
-  const hash = await w.writeContract({ ...request, gas: (gas * 13n) / 10n });
+  const hash = await w.writeContract({ ...request, gas: (gas * 13n) / 10n, ...(await legacyFees()) });
   toast('Submitted… waiting for Aevum');
   await waitTx(hash);
   return hash;
@@ -221,13 +221,13 @@ async function createVault(btn) {
     const args = [TUSD8, agent, toUnits(daily), toUnits(thr)];
     const gas = await pub.estimateGas({ account: S.owner, data: encodeDeployData({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args }) });
     toast('Confirm the deployment in your wallet');
-    const hash = await w.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args, gas: (gas * 13n) / 10n });
+    const hash = await w.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args, gas: (gas * 13n) / 10n, ...(await legacyFees()) });
     const r = await waitTx(hash);
     saveVault(r.contractAddress, r.blockNumber);
     saveAgentKey(key);
     toast('Vault deployed. Confirm the 0.5 tQDAY gas for the assistant.');
     try {
-      const g = await w.sendTransaction({ to: agent, value: parseEther('0.5') });
+      const g = await w.sendTransaction({ to: agent, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) });
       await waitTx(g);
     } catch (e) { toast('Skipped gas top-up: ' + explainError(e), true); }
     showDash();
@@ -279,7 +279,7 @@ async function rotate(btn) {
     const addr = privateKeyToAccount(key).address;
     await ownerWrite('setAgent', [addr]);
     saveAgentKey(key);
-    try { await waitTx(await owner().sendTransaction({ to: addr, value: parseEther('0.5') })); } catch (e) { toast('Gas top-up skipped', true); }
+    try { await waitTx(await owner().sendTransaction({ to: addr, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) })); } catch (e) { toast('Gas top-up skipped', true); }
     toast('Assistant key replaced. The old key no longer works.'); await refresh();
   });
 }
@@ -294,7 +294,8 @@ async function deposit(btn) {
     const amt = Number($('depAmt').value); if (!(amt > 0)) throw new Error('Enter an amount.');
     await ensureAevum();
     const { request } = await pub.simulateContract({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
-    await waitTx(await owner().writeContract(request));
+    const gas = await pub.estimateContractGas({ account: S.owner, address: TUSD8, abi: ERC20_ABI, functionName: 'transfer', args: [S.vault.address, toUnits(amt)] });
+    await waitTx(await owner().writeContract({ ...request, gas: (gas * 13n) / 10n, ...(await legacyFees()) }));
     $('depAmt').value = ''; toast(`Deposited ${amt} tUSD8`); await refresh(); renderWallet();
   });
 }
@@ -309,7 +310,7 @@ async function topupGas(btn) {
   await busy(btn, async () => {
     if (!S.agentKey) throw new Error('This browser doesn’t have the assistant’s key. Replace the key first.');
     await ensureAevum();
-    await waitTx(await owner().sendTransaction({ to: privateKeyToAccount(S.agentKey).address, value: parseEther('0.5') }));
+    await waitTx(await owner().sendTransaction({ to: privateKeyToAccount(S.agentKey).address, value: parseEther('0.5'), gas: 21000n, ...(await legacyFees()) }));
     toast('Assistant gas topped up'); await refresh();
   });
 }
@@ -394,7 +395,7 @@ async function executePay(p, it, amt) {
       account: ac.account, address: S.vault.address, abi: VAULT_ABI, functionName: 'agentPay',
       args: [p.address, amt, (it.memo || '').slice(0, 60)],
     });
-    const hash = await ac.writeContract(request);
+    const hash = await ac.writeContract({ ...request, ...(await legacyFees()) });
     status.textContent = 'Sent to Aevum. Waiting for confirmation…';
     await waitTx(hash);
     const [executed, id] = result;

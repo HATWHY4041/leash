@@ -1,6 +1,7 @@
 // GET /api/health — checks the Aevum RPC and the AI parser are reachable.
 import { complete } from './_llm.js';
 import { encodeDeployData } from 'viem';
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import Vault from '../src/generated/LeashVault.json' with { type: 'json' };
 
 const RPC = process.env.AEVUM_RPC_URL || 'https://rpc-test.qday.info';
@@ -31,6 +32,16 @@ export default async function handler(req, res) {
       maxPriorityFeePerGas: await call('eth_maxPriorityFeePerGas', []),
       feeHistory: await call('eth_feeHistory', ['0x4', 'latest', [25, 50]]),
       clientVersion: await call('web3_clientVersion', []),
+    };
+  }
+  if (req.query?.txtypes === '1') {
+    // Sign throwaway txs from an EMPTY random key: the node's rejection reason shows which types it accepts.
+    const acct = privateKeyToAccount(generatePrivateKey());
+    const send = async (raw) => { const j = await (await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_sendRawTransaction', params: [raw] }) })).json(); return j.error ? j.error.message : j.result; };
+    const base = { to: acct.address, value: 1n, gas: 21000n, nonce: 0, chainId: 44005 };
+    out.txtypes = {
+      legacy: await send(await acct.signTransaction({ ...base, type: 'legacy', gasPrice: 1100000000n })),
+      eip1559: await send(await acct.signTransaction({ ...base, type: 'eip1559', maxFeePerGas: 1100000000n, maxPriorityFeePerGas: 1000000000n })),
     };
   }
   if (req.query?.deploy === '1') {
