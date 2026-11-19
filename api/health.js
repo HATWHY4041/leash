@@ -22,6 +22,17 @@ export default async function handler(req, res) {
   } catch (e) {
     out.rpc = { ok: false, error: String(e.message || e) };
   }
+  if (req.query?.chain === '1') {
+    const call = async (method, params) => { try { const j = await (await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json(); return j.error ? { error: j.error } : j.result; } catch (e) { return { error: String(e) }; } };
+    const blk = await call('eth_getBlockByNumber', ['latest', false]);
+    out.chain = {
+      baseFeePerGas: blk?.baseFeePerGas ?? null, gasLimit: blk?.gasLimit ?? null,
+      gasPrice: await call('eth_gasPrice', []),
+      maxPriorityFeePerGas: await call('eth_maxPriorityFeePerGas', []),
+      feeHistory: await call('eth_feeHistory', ['0x4', 'latest', [25, 50]]),
+      clientVersion: await call('web3_clientVersion', []),
+    };
+  }
   if (req.query?.deploy === '1') {
     // Dry-run the vault deployment on Aevum (no signature, no funds moved).
     try {
