@@ -1,9 +1,7 @@
 // Turns a plain-English message into a structured payment intent using an LLM (Vercel AI Gateway).
 // The model only PROPOSES. It never holds keys and cannot move money: the browser re-validates the
 // intent and the LeashVault contract enforces payee allowlist, per-payment threshold and daily limit.
-import { generateText } from 'ai';
-
-const MODEL = process.env.LEASH_MODEL || 'openai/gpt-4.1-mini';
+import { complete } from './_llm.js';
 
 const SYSTEM = `You are the intent parser for Leash, a stablecoin (tUSD8) payment assistant.
 Convert the user's message into ONE JSON object and nothing else.
@@ -33,13 +31,9 @@ export default async function handler(req, res) {
   if (!message) return res.status(400).json({ error: 'message required' });
 
   try {
-    const { text } = await generateText({
-      model: MODEL,
+    const { text } = await complete({
       system: SYSTEM,
       prompt: `Approved payees: ${JSON.stringify(payees)}\nUser message: ${JSON.stringify(message)}`,
-      temperature: 0,
-      maxOutputTokens: 200,
-      abortSignal: AbortSignal.timeout(8000),
     });
     const json = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
     return res.status(200).json({ ok: true, source: 'ai', intent: json });

@@ -64,7 +64,7 @@ Leash splits the assistant's power in two:
 |---|---|---|
 | Smart contract | `contracts/LeashVault.sol` | One vault per user. Holds tUSD8 (`0x4565…3483`, 6 decimals). Owner = your wallet. Agent = the assistant's key. No admin, no upgradeability, no external dependencies. |
 | Web app | `index.html`, `src/` | Vanilla JS + viem. Deploys your vault from your wallet, manages payees, approvals, limits, kill switch, deposits/withdrawals, and shows the on-chain activity log. |
-| AI intent parser | `api/parse.js` | Serverless function. Calls `openai/gpt-4.1-mini` through Vercel AI Gateway. Returns JSON only. Has no keys and cannot move funds. The system prompt treats the user message as data and ignores instructions to change rules. |
+| AI intent parser | `api/parse.js`, `api/_llm.js` | Serverless function. Calls an LLM (Groq / any OpenAI-compatible API, or Vercel AI Gateway). Returns JSON only. Has no keys and cannot move funds. The system prompt treats the user message as data and ignores instructions to change rules. |
 | Local fallback parser | `src/parser.js` | Rule-based, so the demo works even with no AI available. Output from either parser is re-checked against the on-chain payee list. |
 | RPC proxy | `api/rpc.js` | Forwards an allowlist of read + `eth_sendRawTransaction` calls to `https://rpc-test.qday.info`. It never sees a private key. |
 
@@ -96,7 +96,13 @@ npm run dev       # http://localhost:5173 (proxies RPC to Aevum Testnet)
 npm run build     # production build in dist/
 ```
 
-Deploy to Vercel as-is: the `api/` folder becomes serverless functions. AI parsing uses Vercel AI Gateway (OIDC auth on Vercel, or set `AI_GATEWAY_API_KEY`). Optional env vars: `LEASH_MODEL`, `AEVUM_RPC_URL`.
+Deploy to Vercel as-is: the `api/` folder becomes serverless functions.
+
+AI parsing (`api/_llm.js`) works with either:
+- **Any OpenAI-compatible API**: set `LLM_API_KEY` (defaults to Groq's free tier; override with `LLM_BASE_URL`, `LLM_MODEL`), or
+- **Vercel AI Gateway**: OIDC auth on Vercel or `AI_GATEWAY_API_KEY`; model via `LEASH_MODEL` (default `openai/gpt-4.1-mini`).
+
+With no AI configured, the built-in parser takes over automatically. Optional: `AEVUM_RPC_URL`.
 
 ### Aevum Testnet details
 
@@ -147,7 +153,7 @@ The full UI was also tested end to end in a headless browser against a local cha
 
 ## Tech
 
-Solidity 0.8.26 · viem · Vite · Vercel serverless functions · Vercel AI SDK + AI Gateway (`openai/gpt-4.1-mini`) · QDay Aevum Testnet · tUSD8
+Solidity 0.8.26 · viem · Vite · Vercel serverless functions · LLM via OpenAI-compatible API or Vercel AI Gateway · QDay Aevum Testnet · tUSD8
 
 ## License
 
