@@ -170,12 +170,17 @@ async function renderActivity() {
   box.replaceChildren(el('div', { class: 'empty' }, 'Loading…'));
   try {
     const latest = await pub.getBlockNumber();
+    // Aevum (cdk-erigon) caps eth_getLogs at 1,000 blocks per request.
+    const STEP = 999n;
     let from = BigInt(S.vault.deployBlock || 0);
-    if (latest - from > 90_000n) from = latest - 90_000n;
+    if (latest - from > 60_000n) from = latest - 60_000n;
+    const ranges = [];
+    for (let start = from; start <= latest; start += STEP + 1n) ranges.push([start, start + STEP > latest ? latest : start + STEP]);
     const logs = [];
-    for (let start = from; start <= latest; start += 10_000n) {
-      const end = start + 9_999n > latest ? latest : start + 9_999n;
-      logs.push(...await pub.getContractEvents({ address: S.vault.address, abi: VAULT_ABI, fromBlock: start, toBlock: end }));
+    for (let i = 0; i < ranges.length; i += 6) {
+      const batch = await Promise.all(ranges.slice(i, i + 6).map(([a, b]) =>
+        pub.getContractEvents({ address: S.vault.address, abi: VAULT_ABI, fromBlock: a, toBlock: b })));
+      batch.forEach((x) => logs.push(...x));
     }
     const nameOf = (a) => S.d.payees.find((p) => p.address.toLowerCase() === a?.toLowerCase())?.name || short(a);
     const line = (l) => {
