@@ -4,7 +4,7 @@
 
 **Track:** Native AI Assistants · **Aevum Builder Challenge #1** · stablecoin: **tUSD8**
 
-🔗 **Live demo:** https://leash-aevum.vercel.app
+🔗 **Live demo:** https://leash-aevum.vercel.app · health check: [/api/health](https://leash-aevum.vercel.app/api/health)
 📜 **Contract:** [`contracts/LeashVault.sol`](contracts/LeashVault.sol)
 🧪 **Tests:** `npm test` (16 passing)
 
