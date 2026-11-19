@@ -1,5 +1,7 @@
 // GET /api/health — checks the Aevum RPC and the AI parser are reachable.
 import { complete } from './_llm.js';
+import { encodeDeployData } from 'viem';
+import Vault from '../src/generated/LeashVault.json' with { type: 'json' };
 
 const RPC = process.env.AEVUM_RPC_URL || 'https://rpc-test.qday.info';
 
@@ -19,6 +21,18 @@ export default async function handler(req, res) {
     out.rpc = { ok: true, chainId: parseInt(get(1), 16), block: parseInt(get(2), 16) };
   } catch (e) {
     out.rpc = { ok: false, error: String(e.message || e) };
+  }
+  if (req.query?.deploy === '1') {
+    // Dry-run the vault deployment on Aevum (no signature, no funds moved).
+    try {
+      const from = /^0x[0-9a-fA-F]{40}$/.test(req.query.from || '') ? req.query.from : '0x000000000000000000000000000000000000dEaD';
+      const data = encodeDeployData({ abi: Vault.abi, bytecode: Vault.bytecode, args: ['0x456569838f1d43009A91ebA4263147Afd7233483', from, 10_000000n, 3_000000n] });
+      const call = async (method, params) => (await (await fetch(RPC, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) })).json());
+      const est = await call('eth_estimateGas', [{ from, data }]);
+      const bal = await call('eth_getBalance', [from, 'latest']);
+      const gp = await call('eth_gasPrice', []);
+      out.deploy = { from, estimate: est.result ? parseInt(est.result, 16) : null, error: est.error || null, balanceWei: bal.result ? BigInt(bal.result).toString() : null, gasPriceWei: gp.result ? BigInt(gp.result).toString() : null };
+    } catch (e) { out.deploy = { error: String(e.message || e) }; }
   }
   if (req.query?.ai === '1') {
     try {

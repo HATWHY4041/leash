@@ -1,4 +1,4 @@
-import { isAddress, getAddress, parseEther, formatEther } from 'viem';
+import { isAddress, getAddress, parseEther, formatEther, encodeDeployData } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   pub, connectOwner, ownerClient, agentClient, waitTx, explainError, hasWallet, ensureAevum,
@@ -199,7 +199,8 @@ async function ownerWrite(functionName, args) {
   await ensureAevum();
   const w = owner();
   const { request } = await pub.simulateContract({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
-  const hash = await w.writeContract(request);
+  const gas = await pub.estimateContractGas({ account: S.owner, address: S.vault.address, abi: VAULT_ABI, functionName, args });
+  const hash = await w.writeContract({ ...request, gas: (gas * 13n) / 10n });
   toast('Submitted… waiting for Aevum');
   await waitTx(hash);
   return hash;
@@ -210,11 +211,17 @@ async function createVault(btn) {
     const daily = Number($('newDaily').value), thr = Number($('newThreshold').value);
     if (!(daily > 0) || !(thr >= 0) || thr > daily) throw new Error('Threshold must be between 0 and the daily limit.');
     await ensureAevum();
+    const gasBal = await pub.getBalance({ address: S.owner });
+    if (gasBal < parseEther('0.6')) {
+      throw new Error(`Your wallet has ${Number(formatEther(gasBal)).toFixed(3)} tQDAY on Aevum. You need about 1 tQDAY to deploy the vault and give the assistant gas. Claim some from the QDay faucet, then try again.`);
+    }
     const key = generatePrivateKey();
     const agent = privateKeyToAccount(key).address;
     const w = owner();
+    const args = [TUSD8, agent, toUnits(daily), toUnits(thr)];
+    const gas = await pub.estimateGas({ account: S.owner, data: encodeDeployData({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args }) });
     toast('Confirm the deployment in your wallet');
-    const hash = await w.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args: [TUSD8, agent, toUnits(daily), toUnits(thr)] });
+    const hash = await w.deployContract({ abi: VAULT_ABI, bytecode: VAULT_BYTECODE, args, gas: (gas * 13n) / 10n });
     const r = await waitTx(hash);
     saveVault(r.contractAddress, r.blockNumber);
     saveAgentKey(key);

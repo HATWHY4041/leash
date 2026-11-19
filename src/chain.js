@@ -102,6 +102,7 @@ export function explainError(e) {
       try { const d = decodeErrorResult({ abi: VAULT_ABI, data: raw }); if (FRIENDLY[d.errorName]) return FRIENDLY[d.errorName]; } catch {}
     }
     if (/insufficient funds/i.test(e.message)) return 'Not enough tQDAY for gas. Claim some from the faucet.';
+    if (/internal error/i.test(e.message)) return 'Your wallet couldn’t prepare this transaction. This usually means it doesn’t have enough tQDAY for gas on the Aevum network.';
     if (/user rejected|denied/i.test(e.message)) return 'You cancelled it in your wallet.';
     return e.shortMessage || e.message;
   }
